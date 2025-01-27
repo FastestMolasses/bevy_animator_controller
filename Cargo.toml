@@ -1,0 +1,14 @@
+[package]
+name = "bevy_animator_controller"
+version = "0.1.0"
+edition = "2024"
+exclude = ["dist", "build", "assets"]
+
+[dependencies]
+bevy = { version = "0.15", features = ["bevy_gltf"] }
+ozz-animation-rs = { version = "0.10" }
+thiserror = { version = "2" }
+
+[[example]]
+name = "basic"
+path = "examples/basic.rs"
