@@ -2,7 +2,7 @@ use super::AnimatorController;
 use bevy::{prelude::*, render::mesh::skinning::SkinnedMesh};
 
 #[derive(Component)]
-pub struct BoneIndex(usize);
+pub struct BoneIndex(pub usize);
 
 #[derive(Debug, Clone, Copy)]
 pub struct OzzTransform {
