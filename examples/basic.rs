@@ -3,15 +3,39 @@ use bevy::{
     render::{mesh::PrimitiveTopology, render_asset::RenderAssetUsages},
 };
 use bevy_animator_controller::{OzzAnimationPlugin, prelude::*};
+use bevy_asset_loader::prelude::*;
 use ozz_animation_rs::*;
 use std::sync::Arc;
 
 const MAX_DEBUG_BONE_COUNT: usize = 64;
 
+#[derive(States, Default, Clone, Eq, PartialEq, Debug, Hash)]
+pub enum GameState {
+    #[default]
+    Loading,
+    Playing,
+}
+
+#[derive(AssetCollection, Resource)]
+pub struct PlayerAnimationAssets {
+    #[asset(path = "greatsword_idle.ozz")]
+    pub player_idle: Handle<OzzAsset>,
+    #[asset(path = "skeleton.ozz")]
+    pub skeleton: Handle<OzzAsset>,
+    #[asset(path = "base_man.glb#Scene0")]
+    pub player_mesh: Handle<Scene>,
+}
+
 fn main() {
     App::new()
         .add_plugins((DefaultPlugins, OzzAnimationPlugin))
-        .add_systems(Startup, (setup_scene))
+        .init_state::<GameState>()
+        .add_loading_state(
+            LoadingState::new(GameState::Loading)
+                .load_collection::<PlayerAnimationAssets>()
+                .continue_to_state(GameState::Playing),
+        )
+        .add_systems(OnEnter(GameState::Playing), (setup_scene,))
         // .add_systems(Update, update_debug_bone_transforms)
         .run();
 }
@@ -24,7 +48,6 @@ pub(crate) fn setup_debug_bones(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    // Debug Bones
     let bone_mesh = meshes.add(build_bone_mesh());
     let bone_material = materials.add(Color::srgb(0.68, 0.68, 0.8));
     for i in 0..MAX_DEBUG_BONE_COUNT {
@@ -61,17 +84,18 @@ fn update_debug_bone_transforms(
 
 fn setup_scene(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
+    player_animations: Res<PlayerAnimationAssets>,
     ozz_assets: ResMut<Assets<OzzAsset>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let player_mesh = asset_server.load("base_man.glb#Scene0");
-    let mut player = commands.spawn((Transform::from_xyz(0.0, 0.0, 0.0), SceneRoot(player_mesh)));
+    let mut player = commands.spawn((
+        Transform::from_xyz(0.0, 0.0, 0.0),
+        SceneRoot(player_animations.player_mesh.clone()),
+    ));
 
-    let player_anim_controller = build_player_animation_controller(asset_server, ozz_assets);
+    let player_anim_controller = build_player_animation_controller(player_animations, ozz_assets);
     if let Some(controller) = player_anim_controller {
-        println!("Adding player animation controller");
         player.insert(controller);
     }
 
@@ -79,7 +103,7 @@ fn setup_scene(
         Camera::default(),
         Camera3d::default(),
         Msaa::Off,
-        Transform::from_xyz(0.0, 0.0, 10.0).looking_at(Vec3::default(), Vec3::Y),
+        Transform::from_xyz(0.0, 0.0, 6.0).looking_at(Vec3::default() + Vec3::Z, Vec3::Y),
     ));
 
     // Sky
@@ -96,21 +120,17 @@ fn setup_scene(
 }
 
 pub(crate) fn build_player_animation_controller(
-    asset_server: Res<AssetServer>,
+    player_animations: Res<PlayerAnimationAssets>,
     mut ozz_assets: ResMut<Assets<OzzAsset>>,
 ) -> Option<AnimatorController> {
-    let mut skeleton = asset_server.load("skeleton.ozz");
-    let skeleton = ozz_assets.get_mut(&mut skeleton)?;
-
+    let skeleton = ozz_assets.get_mut(&player_animations.skeleton)?;
     let Ok(skeleton) = Skeleton::from_archive(&mut skeleton.archive) else {
-        println!("Failed to load skeleton");
         return None;
     };
     let skeleton = Arc::new(skeleton);
 
-    let idle_anim = ozz_assets.get_mut(&mut asset_server.load("greatsword_idle.ozz"))?;
+    let idle_anim = ozz_assets.get_mut(&player_animations.player_idle)?;
     let Ok(idle_anim) = Animation::from_archive(&mut idle_anim.archive) else {
-        println!("Failed to load animation");
         return None;
     };
     let idle_anim = Arc::new(idle_anim);

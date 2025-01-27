@@ -9,6 +9,9 @@ bevy = { version = "0.15", features = ["bevy_gltf"] }
 ozz-animation-rs = { version = "0.10" }
 thiserror = { version = "2" }
 
+[dev-dependencies]
+bevy_asset_loader = "0.22"
+
 [[example]]
 name = "basic"
 path = "examples/basic.rs"
