@@ -24,7 +24,6 @@ pub enum AnimationState {
 pub struct SimpleState {
     sampling_job: SamplingJobArc,
     output: Arc<RwLock<Vec<SoaTransform>>>,
-    duration: f32,
 }
 
 unsafe impl Send for SimpleState {}
@@ -58,7 +57,6 @@ impl SimpleState {
         Self {
             sampling_job,
             output: sample_out,
-            duration: 0.0,
         }
     }
 }
@@ -79,18 +77,12 @@ impl SimpleState {
     pub fn get_output_pointer(&self) -> Arc<RwLock<Vec<SoaTransform>>> {
         self.output.clone()
     }
-
-    #[inline]
-    fn get_duration(&self) -> f32 {
-        self.duration
-    }
 }
 
 /// State containing a blend tree
 #[derive(Debug)]
 pub struct BlendState {
     blend_tree: BlendTree,
-    duration: f32,
 }
 
 unsafe impl Send for BlendState {}
@@ -101,7 +93,6 @@ impl BlendState {
     pub fn new(blend_tree: BlendTree) -> Self {
         Self {
             blend_tree,
-            duration: 0.0,
         }
     }
 }
@@ -116,10 +107,5 @@ impl BlendState {
     #[inline]
     pub fn get_output_pointer(&self) -> Arc<RwLock<Vec<SoaTransform>>> {
         self.blend_tree.get_output_pointer()
-    }
-
-    #[inline]
-    fn get_duration(&self) -> f32 {
-        self.duration
     }
 }

@@ -1,13 +1,12 @@
 use super::AnimatorController;
 use bevy::{prelude::*, render::mesh::skinning::SkinnedMesh};
-use ozz_animation_rs::Skeleton;
 
 #[derive(Component)]
 pub struct BoneIndex(pub usize);
 
 #[derive(Debug, Clone, Copy)]
 pub struct OzzTransform {
-    pub scale: f32,
+    pub scale: Vec3,
     pub rotation: Quat,
     pub position: Vec3,
 }
@@ -30,7 +29,7 @@ pub(crate) fn update_bone_transforms(
                 if idx.0 < bone_trans.len() {
                     transform.translation = bone_trans[idx.0].position;
                     transform.rotation = bone_trans[idx.0].rotation;
-                    // transform.scale = Vec3::splat(bone_trans[idx.0].scale);
+                    transform.scale = bone_trans[idx.0].scale;
                 }
             }
         }
@@ -63,7 +62,6 @@ pub(crate) fn add_bone_indexes(
         }
 
         if let Some(skeleton) = skeleton {
-            println!("Found skeleton for SkinnedMesh entity {:?}", entity);
             let joint_names = skeleton.joint_names();
             for joint_entity in &skinned_mesh.joints {
                 if let Ok(name) = names.get(*joint_entity) {

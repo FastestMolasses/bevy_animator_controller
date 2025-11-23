@@ -16,3 +16,11 @@ bevy_asset_loader = "0.23"
 [[example]]
 name = "basic"
 path = "examples/basic.rs"
+
+[[example]]
+name = "blending_1d"
+path = "examples/blending_1d.rs"
+
+[[example]]
+name = "transitions"
+path = "examples/transitions.rs"

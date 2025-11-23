@@ -11,14 +11,8 @@ pub struct AnimatorController {
     parameters: Parameters,
     /// Final blending job
     final_blending_job: BlendingJobArc,
-    /// Local to model job
-    l2m_job: LocalToModelJobArc,
-    /// Output of the local to model job
-    pub models: Arc<RwLock<Vec<Mat4>>>,
     /// Transforms for bones
     pub bone_trans: Vec<OzzTransform>,
-    /// Transforms for spines
-    pub spine_trans: Vec<OzzTransform>,
     /// Skeleton
     pub skeleton: Arc<Skeleton>,
 }
@@ -42,41 +36,17 @@ impl AnimatorController {
         final_blending_job.set_skeleton(skeleton.clone());
         final_blending_job.set_output(blending_output.clone());
 
-        // Setup local to model job
-        let mut l2m_job: LocalToModelJobArc = LocalToModelJob::default();
-        l2m_job.set_skeleton(skeleton.clone());
-        let models = Arc::new(RwLock::new(vec![Mat4::default(); skeleton.num_joints()]));
-        l2m_job.set_output(Arc::new(RwLock::new(
-            models.read().unwrap()
-            .iter()
-            .map(|m| glam::Mat4::from_cols_array_2d(&m.to_cols_array_2d()))
-            .collect()
-        )));
-        l2m_job.set_input(blending_output);
-
-        // Count the number of bones and spines
+        // Count the number of bones
         let mut bone_count = 0;
-        let mut spine_count = 0;
-        for i in 0..skeleton.num_joints() {
+        for _ in 0..skeleton.num_joints() {
             bone_count += 1;
-            let parent_id = skeleton.joint_parent(i);
-            if parent_id as i32 == SKELETON_NO_PARENT {
-                continue;
-            }
-            spine_count += 1;
-            if skeleton.is_leaf(i as i16) {
-                spine_count += 1;
-            }
         }
 
         let mut controller = Self {
             layers,
             parameters,
             final_blending_job,
-            l2m_job,
-            models,
             bone_trans: Vec::with_capacity(bone_count),
-            spine_trans: Vec::with_capacity(spine_count),
             skeleton,
         };
         controller
@@ -109,81 +79,14 @@ impl AnimatorController {
         self.parameters.reset_triggers();
 
         self.final_blending_job.run()?;
-        // self.l2m_job.run()?;
         let skeleton = self.skeleton.clone();
         self.update_bones(&skeleton);
         Ok(())
     }
 
     #[inline]
-    fn update_bones_old(&mut self, skeleton: &Skeleton) {
-        self.bone_trans.clear();
-        self.spine_trans.clear();
-
-        // The transformation matrices are extracted from the output of the LocalToModelJob
-        // and used to calculate the bone and spine transformations
-        let modals = self.models.buf().unwrap();
-        for (i, current) in modals.iter().enumerate() {
-            let parent_id = skeleton.joint_parent(i);
-            if parent_id as i32 == SKELETON_NO_PARENT {
-                continue;
-            }
-            let parent = &modals[parent_id as usize];
-
-            let current_pos = current.w_axis.xyz();
-            let parent_pos = parent.w_axis.xyz();
-            // Scale is calculated as the distance between the current joint and its parent
-            let scale: f32 = (current_pos - parent_pos).length();
-
-            // Normalized direction vector from the parent joint to the current joint
-            let bone_dir = (current_pos - parent_pos).normalize();
-
-            // This part determines a binormal vector:
-            // It compares the dot products of bone_dir with the parent's x and z axes.
-            // The axis that's more perpendicular to bone_dir is chosen as the binormal.
-            let dot1 = Vec3::dot(bone_dir, parent.x_axis.xyz());
-            let dot2 = Vec3::dot(bone_dir, parent.z_axis.xyz());
-            let binormal = if dot1.abs() < dot2.abs() {
-                parent.x_axis.xyz()
-            } else {
-                parent.z_axis.xyz()
-            };
-
-            // Here, an orthonormal basis is constructed:
-            // bone_rot_y is perpendicular to both binormal and bone_dir.
-            // bone_rot_z is perpendicular to both bone_dir and bone_rot_y.
-            // These vectors form a rotation matrix, which is then converted to a quaternion
-            let bone_rot_y = Vec3::cross(binormal, bone_dir).normalize();
-            let bone_rot_z = Vec3::cross(bone_dir, bone_rot_y).normalize();
-            let bone_rot = Quat::from_mat3(&Mat3::from_cols(bone_dir, bone_rot_y, bone_rot_z));
-
-            self.bone_trans.push(OzzTransform {
-                scale,
-                rotation: bone_rot,
-                position: parent_pos,
-            });
-
-            let parent_rot = Quat::from_mat4(parent);
-            self.spine_trans.push(OzzTransform {
-                scale,
-                rotation: parent_rot,
-                position: parent_pos,
-            });
-
-            if skeleton.is_leaf(i as i16) {
-                let current_rot = Quat::from_mat4(current);
-                self.spine_trans.push(OzzTransform {
-                    scale,
-                    rotation: current_rot,
-                    position: current_pos,
-                });
-            }
-        }
-    }
-
     pub fn update_bones(&mut self, skeleton: &Skeleton) {
         self.bone_trans.clear();
-        self.spine_trans.clear();
 
         if let Ok(local_transforms) = self.final_blending_job.output().unwrap().read() {
             for i in 0..skeleton.num_joints() {
@@ -210,45 +113,10 @@ impl AnimatorController {
                 );
 
                 self.bone_trans.push(OzzTransform {
-                    scale: current_scale.x,
+                    scale: current_scale,
                     rotation: current_rot,
                     position: current_pos,
                 });
-
-                let parent_id = skeleton.joint_parent(i);
-                if parent_id as i32 != SKELETON_NO_PARENT {
-                    let parent_soa_index = parent_id as usize / 4;
-                    let parent_lane = parent_id as usize % 4;
-
-                    let parent_pos = Vec3::new(
-                        local_transforms[parent_soa_index].translation.x[parent_lane],
-                        local_transforms[parent_soa_index].translation.y[parent_lane],
-                        local_transforms[parent_soa_index].translation.z[parent_lane],
-                    );
-
-                    let parent_rot = Quat::from_xyzw(
-                        local_transforms[parent_soa_index].rotation.x[parent_lane],
-                        local_transforms[parent_soa_index].rotation.y[parent_lane],
-                        local_transforms[parent_soa_index].rotation.z[parent_lane],
-                        local_transforms[parent_soa_index].rotation.w[parent_lane],
-                    );
-
-                    let scale = current_scale.x;
-
-                    self.spine_trans.push(OzzTransform {
-                        scale,
-                        rotation: parent_rot,
-                        position: parent_pos,
-                    });
-
-                    if skeleton.is_leaf(i as i16) {
-                        self.spine_trans.push(OzzTransform {
-                            scale,
-                            rotation: current_rot,
-                            position: current_pos,
-                        });
-                    }
-                }
             }
         }
     }
@@ -291,5 +159,10 @@ impl AnimatorController {
         }
 
         Ok(())
+    }
+
+    #[inline]
+    pub fn parameters_mut(&mut self) -> &mut Parameters {
+        &mut self.parameters
     }
 }

@@ -174,14 +174,12 @@ impl BlendTree {
             if param_value <= first_threshold {
                 blend_layers[0].weight = 1.0;
             }
-        } else if let Some(last_motion) = self.motions.last_mut() {
-            if let MotionThreshold::Simple1D(last_threshold) = last_motion.threshold {
-                if param_value >= last_threshold {
-                    if let Some(last_layer) = blend_layers.last_mut() {
-                        last_layer.weight = 1.0
-                    }
-                }
-            }
+        } else if let Some(last_motion) = self.motions.last_mut()
+            && let MotionThreshold::Simple1D(last_threshold) = last_motion.threshold
+            && param_value >= last_threshold
+            && let Some(last_layer) = blend_layers.last_mut()
+        {
+            last_layer.weight = 1.0
         }
     }
 

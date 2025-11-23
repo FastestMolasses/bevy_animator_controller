@@ -76,7 +76,7 @@ fn update_debug_bone_transforms(
                 *visibility = Visibility::Visible;
                 transform.translation = bone_trans[idx.0].position;
                 transform.rotation = bone_trans[idx.0].rotation;
-                transform.scale = Vec3::splat(bone_trans[idx.0].scale);
+                transform.scale = bone_trans[idx.0].scale;
             }
         }
     }
