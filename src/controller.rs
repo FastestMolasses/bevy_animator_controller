@@ -46,7 +46,12 @@ impl AnimatorController {
         let mut l2m_job: LocalToModelJobArc = LocalToModelJob::default();
         l2m_job.set_skeleton(skeleton.clone());
         let models = Arc::new(RwLock::new(vec![Mat4::default(); skeleton.num_joints()]));
-        l2m_job.set_output(models.clone());
+        l2m_job.set_output(Arc::new(RwLock::new(
+            models.read().unwrap()
+            .iter()
+            .map(|m| glam::Mat4::from_cols_array_2d(&m.to_cols_array_2d()))
+            .collect()
+        )));
         l2m_job.set_input(blending_output);
 
         // Count the number of bones and spines

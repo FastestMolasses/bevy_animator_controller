@@ -65,7 +65,7 @@ fn update_debug_bone_transforms(
     mut query: Query<(&mut Transform, &mut Visibility, &BoneIndex), With<DebugBone>>,
     controller_query: Query<&AnimatorController, Without<BoneIndex>>,
 ) {
-    let Ok(controller) = controller_query.get_single() else {
+    let Ok(controller) = controller_query.single() else {
         return;
     };
 
