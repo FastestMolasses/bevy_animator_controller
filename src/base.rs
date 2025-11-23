@@ -1,5 +1,6 @@
 use super::AnimatorController;
 use bevy::{prelude::*, render::mesh::skinning::SkinnedMesh};
+use ozz_animation_rs::Skeleton;
 
 #[derive(Component)]
 pub struct BoneIndex(pub usize);
@@ -23,6 +24,7 @@ pub(crate) fn update_bone_transforms(
 ) {
     for controller in controller_query.iter() {
         let bone_trans = &controller.bone_trans;
+
         if !bone_trans.is_empty() {
             for (mut transform, idx) in query.iter_mut() {
                 if idx.0 < bone_trans.len() {
@@ -35,12 +37,55 @@ pub(crate) fn update_bone_transforms(
     }
 }
 
-pub(crate) fn add_bone_indexes(bones: Query<&SkinnedMesh, Added<SkinnedMesh>>, mut commands: Commands) {
-    for skinned_mesh in &bones {
-        for (joint_index, joint_entity) in skinned_mesh.joints.iter().enumerate() {
-            commands
-                .entity(*joint_entity)
-                .insert(BoneIndex(joint_index));
+pub(crate) fn add_bone_indexes(
+    bones: Query<(Entity, &SkinnedMesh), Added<SkinnedMesh>>,
+    parents: Query<&ChildOf>,
+    controllers: Query<&AnimatorController>,
+    names: Query<&Name>,
+    mut commands: Commands,
+) {
+    for (entity, skinned_mesh) in &bones {
+        // Find AnimatorController in ancestors
+        let mut current_entity = entity;
+        let mut skeleton = None;
+
+        // Walk up to find controller
+        loop {
+            if let Ok(controller) = controllers.get(current_entity) {
+                skeleton = Some(&controller.skeleton);
+                break;
+            }
+            if let Ok(child_of) = parents.get(current_entity) {
+                current_entity = child_of.parent();
+            } else {
+                break;
+            }
+        }
+
+        if let Some(skeleton) = skeleton {
+            println!("Found skeleton for SkinnedMesh entity {:?}", entity);
+            let joint_names = skeleton.joint_names();
+            for joint_entity in &skinned_mesh.joints {
+                if let Ok(name) = names.get(*joint_entity) {
+                    let mut found_index = None;
+                    for (k, v) in joint_names.iter() {
+                        if k == name.as_str() {
+                            found_index = Some(*v);
+                            break;
+                        }
+                    }
+
+                    if let Some(index) = found_index {
+                        commands
+                            .entity(*joint_entity)
+                            .insert(BoneIndex(index as usize));
+                    }
+                }
+            }
+        } else {
+            for (i, joint_entity) in skinned_mesh.joints.iter().enumerate() {
+                commands.entity(*joint_entity).insert(BoneIndex(i));
+            }
         }
     }
 }

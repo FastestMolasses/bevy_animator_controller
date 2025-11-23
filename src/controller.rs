@@ -58,11 +58,11 @@ impl AnimatorController {
         let mut bone_count = 0;
         let mut spine_count = 0;
         for i in 0..skeleton.num_joints() {
+            bone_count += 1;
             let parent_id = skeleton.joint_parent(i);
             if parent_id as i32 == SKELETON_NO_PARENT {
                 continue;
             }
-            bone_count += 1;
             spine_count += 1;
             if skeleton.is_leaf(i as i16) {
                 spine_count += 1;
@@ -187,26 +187,13 @@ impl AnimatorController {
 
         if let Ok(local_transforms) = self.final_blending_job.output().unwrap().read() {
             for i in 0..skeleton.num_joints() {
-                let parent_id = skeleton.joint_parent(i);
-                if parent_id as i32 == SKELETON_NO_PARENT {
-                    continue;
-                }
-
                 let current_soa_index = i / 4;
                 let current_lane = i % 4;
-                let parent_soa_index = parent_id as usize / 4;
-                let parent_lane = parent_id as usize % 4;
 
                 let current_pos = Vec3::new(
                     local_transforms[current_soa_index].translation.x[current_lane],
                     local_transforms[current_soa_index].translation.y[current_lane],
                     local_transforms[current_soa_index].translation.z[current_lane],
-                );
-
-                let parent_pos = Vec3::new(
-                    local_transforms[parent_soa_index].translation.x[parent_lane],
-                    local_transforms[parent_soa_index].translation.y[parent_lane],
-                    local_transforms[parent_soa_index].translation.z[parent_lane],
                 );
 
                 let current_rot = Quat::from_xyzw(
@@ -216,33 +203,51 @@ impl AnimatorController {
                     local_transforms[current_soa_index].rotation.w[current_lane],
                 );
 
-                let parent_rot = Quat::from_xyzw(
-                    local_transforms[parent_soa_index].rotation.x[parent_lane],
-                    local_transforms[parent_soa_index].rotation.y[parent_lane],
-                    local_transforms[parent_soa_index].rotation.z[parent_lane],
-                    local_transforms[parent_soa_index].rotation.w[parent_lane],
+                let current_scale = Vec3::new(
+                    local_transforms[current_soa_index].scale.x[current_lane],
+                    local_transforms[current_soa_index].scale.y[current_lane],
+                    local_transforms[current_soa_index].scale.z[current_lane],
                 );
 
-                let scale = (current_pos - parent_pos).length();
-
                 self.bone_trans.push(OzzTransform {
-                    scale,
+                    scale: current_scale.x,
                     rotation: current_rot,
                     position: current_pos,
                 });
 
-                self.spine_trans.push(OzzTransform {
-                    scale,
-                    rotation: parent_rot,
-                    position: parent_pos,
-                });
+                let parent_id = skeleton.joint_parent(i);
+                if parent_id as i32 != SKELETON_NO_PARENT {
+                    let parent_soa_index = parent_id as usize / 4;
+                    let parent_lane = parent_id as usize % 4;
 
-                if skeleton.is_leaf(i as i16) {
+                    let parent_pos = Vec3::new(
+                        local_transforms[parent_soa_index].translation.x[parent_lane],
+                        local_transforms[parent_soa_index].translation.y[parent_lane],
+                        local_transforms[parent_soa_index].translation.z[parent_lane],
+                    );
+
+                    let parent_rot = Quat::from_xyzw(
+                        local_transforms[parent_soa_index].rotation.x[parent_lane],
+                        local_transforms[parent_soa_index].rotation.y[parent_lane],
+                        local_transforms[parent_soa_index].rotation.z[parent_lane],
+                        local_transforms[parent_soa_index].rotation.w[parent_lane],
+                    );
+
+                    let scale = current_scale.x;
+
                     self.spine_trans.push(OzzTransform {
                         scale,
-                        rotation: current_rot,
-                        position: current_pos,
+                        rotation: parent_rot,
+                        position: parent_pos,
                     });
+
+                    if skeleton.is_leaf(i as i16) {
+                        self.spine_trans.push(OzzTransform {
+                            scale,
+                            rotation: current_rot,
+                            position: current_pos,
+                        });
+                    }
                 }
             }
         }
