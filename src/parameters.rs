@@ -15,7 +15,6 @@ impl Parameters {
         Self::default()
     }
 
-    // Getters
     #[inline]
     pub fn get_bool(&self, name: &str) -> Option<bool> {
         self.bools.get(name).copied()
@@ -36,7 +35,6 @@ impl Parameters {
         self.triggers.get(name).copied().unwrap_or(false)
     }
 
-    // Setters
     #[inline]
     pub fn set_bool(&mut self, name: &str, value: bool) {
         self.bools.insert(name.to_string(), value);

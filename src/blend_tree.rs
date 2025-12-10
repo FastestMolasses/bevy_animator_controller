@@ -183,6 +183,7 @@ impl BlendTree {
         }
     }
 
+    #[inline(always)]
     fn calculate_weights_2d(&mut self, x_param_value: f32, y_param_value: f32) {
         // Reset all weights to 0 initially
         for layer in self.blend_job.layers_mut() {

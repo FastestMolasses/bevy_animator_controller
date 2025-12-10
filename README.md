@@ -74,6 +74,8 @@ fn build_player_animation_controller(
 }
 ```
 
+Check [usage.md](./USAGE.md) for a complete guide.
+
 ## License
 
 * MIT License ([LICENSE-MIT](LICENSE-MIT) or [http://opensource.org/licenses/MIT](http://opensource.org/licenses/MIT))
